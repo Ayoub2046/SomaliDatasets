@@ -126,6 +126,7 @@ export default function Record() {
       const audioBytes = await fetch(audioUrl).then((r) => r.blob())
       await data.submitDataset({
         sentence: current?.text,
+        sentence_id: current?.id,
         audio_blob: audioBytes,
         duration: Math.max(1, elapsed),
         metadata: {

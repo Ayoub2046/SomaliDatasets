@@ -292,29 +292,33 @@ const liveData = {
       status: uiStatus(d.status),
     }))
   },
-  async submitDataset({ sentence, audio_blob, duration, metadata }) {
+  async submitDataset({ sentence, sentence_id, audio_blob, duration, metadata }) {
     const { data: u } = await supabase.auth.getUser()
     if (!u?.user) throw new Error('Not authenticated')
     const userId = u.user.id
-    // Resolve the sentence id by text (recordings require an existing sentence).
-    const { data: sentences, error: se } = await supabase
-      .from('sentences').select('id, text').eq('status', 'active').limit(1000)
-    if (se) throw se
-    const sn = (sentences || []).find((s) => s.text === sentence)
-    // Recordings must reference a sentence that exists in the database.
+    // Resolve the sentence id: prefer the one already provided, otherwise
+    // match by text. Recordings require an existing sentence in the DB.
+    let sentenceId = sentence_id
+    if (!sentenceId) {
+      const { data: sentences, error: se } = await supabase
+        .from('sentences').select('id, text').eq('status', 'active').limit(1000)
+      if (se) throw new Error(`Could not load sentences: ${se.message}`)
+      const sn = (sentences || []).find((s) => s.text === sentence)
+      if (sn) sentenceId = sn.id
+    }
+    if (!sentenceId) {
+      throw new Error('Jumladdan kama jirto database-ka. Add a sentence first.')
+    }
     let audioPath = null
     if (audio_blob) {
       audioPath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webm`
       const { error: upErr } = await supabase.storage
         .from('pending-recordings').upload(audioPath, audio_blob, { contentType: audio_blob.type || 'audio/webm' })
-      if (upErr) throw upErr
-    }
-    if (!sn) {
-      throw new Error('Jumladdan kama jirto database-ka. Add a sentence first.')
+      if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
     }
     const { error } = await supabase.from('recordings').insert({
       user_id: userId,
-      sentence_id: sn.id,
+      sentence_id: sentenceId,
       status: 'pending_upload',
       storage_key: audioPath,
       duration,
@@ -325,7 +329,7 @@ const liveData = {
       browser: metadata?.browser,
       client_checks: {},
     })
-    if (error) throw error
+    if (error) throw new Error(`Submit failed: ${error.message}`)
     return true
   },
   async setStatus(id, status) {
