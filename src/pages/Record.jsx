@@ -25,6 +25,7 @@ export default function Record() {
   const timerRef = useRef(null)
   const startedAtRef = useRef(0)
   const idxRef = useRef(0)
+  const blobRef = useRef(null)
 
   useEffect(() => {
     const browser = detectBrowser()
@@ -56,6 +57,7 @@ export default function Record() {
     releaseStream()
     setState(idle)
     setAudioUrl(null)
+    blobRef.current = null
     setElapsed(0)
     setMicError('')
     setMeta((m) => ({ ...m, gender: '', age: '', noise: 3 }))
@@ -78,6 +80,7 @@ export default function Record() {
       }
       rec.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
+        blobRef.current = blob
         setAudioUrl(URL.createObjectURL(blob))
         setState(recorded)
       }
@@ -123,7 +126,8 @@ export default function Record() {
     }
     setBusy(true)
     try {
-      const audioBytes = await fetch(audioUrl).then((r) => r.blob())
+      const audioBytes = blobRef.current
+      if (!audioBytes) throw new Error('No audio found to submit. Please record again.')
       await data.submitDataset({
         sentence: current?.text,
         sentence_id: current?.id,
