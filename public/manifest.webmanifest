@@ -1,0 +1,16 @@
+{
+  "name": "caawiyeai",
+  "version": "1.0.0",
+  "description": "Somali Community Voice Platform",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "so",
+  "start_url": "/",
+  "theme_color": "#141a15",
+  "background_color": "#0c100c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
