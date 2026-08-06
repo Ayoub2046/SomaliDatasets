@@ -148,18 +148,8 @@ export default function AdminDatasets() {
         audio.onended = () => setPlayingAudioId(null)
       })
       .catch(() => {
-        // Fallback to speech synthesis if audio file link is not accessible
-        if ('speechSynthesis' in window && d.sentence) {
-          const u = new SpeechSynthesisUtterance(d.sentence)
-          u.rate = playbackSpeed
-          u.onend = () => setPlayingAudioId(null)
-          u.onerror = () => setPlayingAudioId(null)
-          window.speechSynthesis.speak(u)
-          push('Wuxuu isticmaalayaa muunad cod ah (TTS Preview)...', 'info')
-        } else {
-          setPlayingAudioId(null)
-          push('Audio file playback unavailable.', 'warning')
-        }
+        setPlayingAudioId(null)
+        push("Faylkan audio-ga ah ee bini'aadamku duubay laguma dhageysan karo browser-kaaga.", 'warning')
       })
   }
 
