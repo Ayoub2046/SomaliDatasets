@@ -337,20 +337,40 @@ const liveData = {
       if (userId) q = q.eq('user_id', userId)
       const { data, error } = await q
       if (error) throw error
-      return (data || []).map((d) => {
-        let publicUrl = null
-        if (d.storage_key) {
-          publicUrl = supabase.storage.from('pending-recordings').getPublicUrl(d.storage_key)?.data?.publicUrl
+
+      const rows = data || []
+
+      // Generate signed URLs for all rows that have a storage_key.
+      // Signed URLs work for both public and private buckets.
+      const keysToSign = rows.filter((d) => d.storage_key).map((d) => d.storage_key)
+      let signedMap = {}
+      if (keysToSign.length > 0) {
+        try {
+          const { data: signed } = await supabase.storage
+            .from('pending-recordings')
+            .createSignedUrls(keysToSign, 3600) // 1-hour expiry
+          if (signed) {
+            for (const s of signed) {
+              if (s.signedUrl) signedMap[s.path] = s.signedUrl
+            }
+          }
+        } catch (_) {
+          // Fallback: try public URL for each key
+          for (const key of keysToSign) {
+            const res = supabase.storage.from('pending-recordings').getPublicUrl(key)
+            if (res?.data?.publicUrl) signedMap[key] = res.data.publicUrl
+          }
         }
-        return {
-          ...d,
-          sentence: d.sentences?.text || d.sentence || '',
-          username: d.profiles?.username || 'unknown',
-          photo: d.profiles?.photo || null,
-          status: uiStatus(d.status),
-          audio_url: publicUrl || d.audio_url || null,
-        }
-      })
+      }
+
+      return rows.map((d) => ({
+        ...d,
+        sentence: d.sentences?.text || d.sentence || '',
+        username: d.profiles?.username || 'unknown',
+        photo: d.profiles?.photo || null,
+        status: uiStatus(d.status),
+        audio_url: (d.storage_key && signedMap[d.storage_key]) || d.audio_url || null,
+      }))
     } catch (_) {
       return await mockData.getDatasets({ limit, status, userId })
     }
