@@ -32,24 +32,43 @@ export default function Verify() {
   const current = datasets[currentIndex]
 
   function playAudio() {
-    if (!current?.audio_url && !current?.storage_key) {
-      push('Codkaan ma laha fayl playable ah.', 'warning')
-      return
-    }
-    const src = current.audio_url || current.storage_key
-    if (!audioRef.current) {
-      audioRef.current = new Audio(src)
-    } else {
-      audioRef.current.src = src
-    }
-
+    const src = current?.audio_url || current?.storage_key
     setPlaying(true)
-    audioRef.current.play().then(() => {
-      audioRef.current.onended = () => setPlaying(false)
-    }).catch(() => {
+
+    if (src) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(src)
+      } else {
+        audioRef.current.src = src
+      }
+
+      audioRef.current
+        .play()
+        .then(() => {
+          audioRef.current.onended = () => setPlaying(false)
+        })
+        .catch(() => {
+          if ('speechSynthesis' in window && current?.sentence) {
+            const u = new SpeechSynthesisUtterance(current.sentence)
+            u.onend = () => setPlaying(false)
+            u.onerror = () => setPlaying(false)
+            window.speechSynthesis.speak(u)
+            push('Muunad cod ah (TTS Preview)...', 'info')
+          } else {
+            setPlaying(false)
+            push('Faylkan audio-ga ma dhagaysan kartid.', 'warning')
+          }
+        })
+    } else if ('speechSynthesis' in window && current?.sentence) {
+      const u = new SpeechSynthesisUtterance(current.sentence)
+      u.onend = () => setPlaying(false)
+      u.onerror = () => setPlaying(false)
+      window.speechSynthesis.speak(u)
+      push('Muunad cod ah (TTS Preview)...', 'info')
+    } else {
       setPlaying(false)
-      push('Ma dhagaysan kartid faylkan.', 'error')
-    })
+      push('Codkaan ma laha fayl playable ah.', 'warning')
+    }
   }
 
   async function handleVote(isClear) {

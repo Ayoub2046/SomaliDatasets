@@ -337,13 +337,20 @@ const liveData = {
       if (userId) q = q.eq('user_id', userId)
       const { data, error } = await q
       if (error) throw error
-      return (data || []).map((d) => ({
-        ...d,
-        sentence: d.sentences?.text || '',
-        username: d.profiles?.username || 'unknown',
-        photo: d.profiles?.photo || null,
-        status: uiStatus(d.status),
-      }))
+      return (data || []).map((d) => {
+        let publicUrl = null
+        if (d.storage_key) {
+          publicUrl = supabase.storage.from('pending-recordings').getPublicUrl(d.storage_key)?.data?.publicUrl
+        }
+        return {
+          ...d,
+          sentence: d.sentences?.text || d.sentence || '',
+          username: d.profiles?.username || 'unknown',
+          photo: d.profiles?.photo || null,
+          status: uiStatus(d.status),
+          audio_url: publicUrl || d.audio_url || null,
+        }
+      })
     } catch (_) {
       return await mockData.getDatasets({ limit, status, userId })
     }
