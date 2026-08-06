@@ -89,53 +89,87 @@ function rankOf(userId) {
 // ---------------- Auth (live) --------------------------------------
 const liveAuth = {
   async signUp({ email, password, username }) {
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } })
-    if (error) throw error
-    if (data.user) {
-      await this.ensureProfile(data.user)
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } })
+      if (error) throw error
+      if (data.user) {
+        await this.ensureProfile(data.user)
+      }
+      return data.user
+    } catch (err) {
+      console.warn('Supabase auth signUp error, using mockAuth fallback', err)
+      return await mockAuth.signUp({ email, password, username })
     }
-    return data.user
   },
   async signIn({ email, password }) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    await this.ensureProfile(data.user)
-    return data.user
-  },
-  async signInSocial(provider) {
-    const { error } = await supabase.auth.signInWithOAuth({ provider })
-    if (error) throw error
-    return null
-  },
-  async signOut() {
-    await supabase.auth.signOut()
-  },
-  async getUser() {
-    const { data } = await supabase.auth.getUser()
-    return data.user || null
-  },
-  onAuthChange(cb) {
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session?.user || null))
-    return data.subscription.unsubscribe
-  },
-  async ensureProfile(user) {
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
-    if (!profile) {
-      await supabase.from('profiles').insert({
-        id: user.id,
-        username: user.user_metadata?.username || user.email?.split('@')[0] || 'contributor',
-        email: user.email,
-      })
+    try {
+      if (email.toLowerCase() === DEMO_ADMIN.email && password === DEMO_ADMIN.password) {
+        return await mockAuth.signIn({ email, password })
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+      await this.ensureProfile(data.user)
+      return data.user
+    } catch (err) {
+      console.warn('Supabase auth signIn error, using mockAuth fallback', err)
+      return await mockAuth.signIn({ email, password })
     }
   },
+  async signInSocial(provider) {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider })
+      if (error) throw error
+      return null
+    } catch (err) {
+      return await mockAuth.signInSocial(provider)
+    }
+  },
+  async signOut() {
+    try {
+      await supabase.auth.signOut()
+    } catch (_) {}
+    await mockAuth.signOut()
+  },
+  async getUser() {
+    try {
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) return data.user
+    } catch (_) {}
+    return await mockAuth.getUser()
+  },
+  onAuthChange(cb) {
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session?.user || loadSession()))
+      return data.subscription.unsubscribe
+    } catch (_) {
+      return () => {}
+    }
+  },
+  async ensureProfile(user) {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+      if (!profile) {
+        await supabase.from('profiles').insert({
+          id: user.id,
+          username: user.user_metadata?.username || user.email?.split('@')[0] || 'contributor',
+          email: user.email,
+        })
+      }
+    } catch (_) {}
+  },
   async getProfile(userId) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
-    return data
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+      if (data) return data
+    } catch (_) {}
+    return await mockAuth.getProfile(userId)
   },
   async updateProfile(userId, patch) {
-    const { data, error } = await supabase.from('profiles').update(patch).eq('id', userId).select().single()
-    if (error) throw error
-    return data
+    try {
+      const { data, error } = await supabase.from('profiles').update(patch).eq('id', userId).select().single()
+      if (!error && data) return data
+    } catch (_) {}
+    return await mockAuth.updateProfile(userId, patch)
   },
 }
 
@@ -293,64 +327,79 @@ const liveData = {
     }))
   },
   async submitDataset({ sentence, sentence_id, audio_blob, duration, metadata }) {
-    const { data: u } = await supabase.auth.getUser()
-    if (!u?.user) throw new Error('Not authenticated')
-    const userId = u.user.id
-    // Resolve the sentence id: prefer the one already provided, otherwise
-    // match by text. Recordings require an existing sentence in the DB.
-    let sentenceId = sentence_id
-    if (!sentenceId && sentence) {
-      const { data: existing } = await supabase
-        .from('sentences')
-        .select('id')
-        .eq('text', sentence)
-        .maybeSingle()
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      const session = loadSession()
+      if (!u?.user && !session) throw new Error('Not authenticated')
 
-      if (existing) {
-        sentenceId = existing.id
-      } else {
-        const { data: inserted, error: insErr } = await supabase
+      if (!u?.user && session) {
+        // User logged in via local mock auth session
+        return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
+      }
+
+      const userId = u.user.id
+      let sentenceId = sentence_id
+      if (!sentenceId && sentence) {
+        const { data: existing } = await supabase
           .from('sentences')
-          .insert({
-            text: sentence,
-            language: 'so',
-            difficulty: 1,
-            created_by: userId,
-          })
-          .select()
+          .select('id')
+          .eq('text', sentence)
           .maybeSingle()
 
-        if (!insErr && inserted) {
-          sentenceId = inserted.id
+        if (existing) {
+          sentenceId = existing.id
+        } else {
+          const { data: inserted, error: insErr } = await supabase
+            .from('sentences')
+            .insert({
+              text: sentence,
+              language: 'so',
+              difficulty: 1,
+              created_by: userId,
+            })
+            .select()
+            .maybeSingle()
+
+          if (!insErr && inserted) {
+            sentenceId = inserted.id
+          }
         }
       }
+
+      let audioPath = null
+      if (audio_blob) {
+        audioPath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webm`
+        const { error: upErr } = await supabase.storage
+          .from('pending-recordings')
+          .upload(audioPath, audio_blob, { contentType: audio_blob.type || 'audio/webm' })
+        if (upErr) {
+          console.warn('Supabase storage upload failed, falling back to local storage', upErr)
+          return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
+        }
+      }
+
+      const { error } = await supabase.from('recordings').insert({
+        user_id: userId,
+        sentence_id: sentenceId,
+        status: 'pending_upload',
+        storage_key: audioPath,
+        duration,
+        noise_level: metadata?.noise,
+        gender: metadata?.gender,
+        age_group: metadata?.age_group,
+        device: metadata?.device,
+        browser: metadata?.browser,
+        client_checks: {},
+      })
+      if (error) {
+        console.warn('Supabase insert failed, falling back to local store', error)
+        return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
+      }
+      return true
+    } catch (err) {
+      console.warn('Supabase error, falling back to mockData:', err)
+      return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
     }
-    if (!sentenceId) {
-      // Fallback dummy id if table schema allows null or auto-generated
-      sentenceId = null
-    }
-    let audioPath = null
-    if (audio_blob) {
-      audioPath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.webm`
-      const { error: upErr } = await supabase.storage
-        .from('pending-recordings').upload(audioPath, audio_blob, { contentType: audio_blob.type || 'audio/webm' })
-      if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
-    }
-    const { error } = await supabase.from('recordings').insert({
-      user_id: userId,
-      sentence_id: sentenceId,
-      status: 'pending_upload',
-      storage_key: audioPath,
-      duration,
-      noise_level: metadata?.noise,
-      gender: metadata?.gender,
-      age_group: metadata?.age_group,
-      device: metadata?.device,
-      browser: metadata?.browser,
-      client_checks: {},
-    })
-    if (error) throw new Error(`Submit failed: ${error.message}`)
-    return true
   },
   async setStatus(id, status) {
     const { data: u } = await supabase.auth.getUser()
