@@ -215,7 +215,7 @@ body {
 }
 
 /* ---------- Scrollbar ---------- */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #224704; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: #9efe05; }
 ::-webkit-scrollbar-track { background: #0c100c; }
@@ -226,11 +226,51 @@ body {
 }
 
 /* ---------- Leaderboard podium ---------- */
-.podium-first  { box-shadow: 0 8px 30px rgba(255,215,0,.25); border-color:#aaf228!important; }
-.podium-2nd { box-shadow: 0 8px 30px rgba(209,210,212,.2); }
-.podium-3rd { box-shadow: 0 8px 30px rgba(205,127,50,.2); }
+.podium-first {
+  box-shadow: 0 8px 32px rgba(158, 254, 5, 0.25);
+  border-color: #aaf228 !important;
+  background: linear-gradient(180deg, rgba(158, 254, 5, 0.12), rgba(20, 26, 21, 0.95)) !important;
+}
+.podium-2nd {
+  box-shadow: 0 8px 24px rgba(209, 210, 212, 0.15);
+  background: linear-gradient(180deg, rgba(209, 210, 212, 0.08), rgba(20, 26, 21, 0.95)) !important;
+}
+.podium-3rd {
+  box-shadow: 0 8px 24px rgba(205, 127, 50, 0.15);
+  background: linear-gradient(180deg, rgba(205, 127, 50, 0.08), rgba(20, 26, 21, 0.95)) !important;
+}
 
 /* ---------- Small polish ---------- */
 .rounded-4 { border-radius: 1.15rem !important; }
 .micro-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: var(--caa-gray); opacity:.8; }
 .cursor-pointer { cursor: pointer; }
+
+/* ---------- Extra Micro Animations & Premium Glows ---------- */
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(158, 254, 5, 0.4); }
+  70% { box-shadow: 0 0 0 16px rgba(158, 254, 5, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(158, 254, 5, 0); }
+}
+.pulse-glow { animation: pulseGlow 2s infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.floating-element { animation: float 4s ease-in-out infinite; }
+
+.visualizer-canvas {
+  background: rgba(12, 16, 12, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(158, 254, 5, 0.2);
+  width: 100%;
+}
+
+.badge-glow {
+  box-shadow: 0 0 12px rgba(158, 254, 5, 0.3);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(158, 254, 5, 0.25);
+  border-color: rgba(158, 254, 5, 0.5) !important;
+}

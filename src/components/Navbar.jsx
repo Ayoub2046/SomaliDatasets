@@ -59,6 +59,9 @@ export default function Navbar() {
               </li>
             )}
             <li className="nav-item">
+              <NavItem to="/verify" label="Verify" icon="bi-check2-all" />
+            </li>
+            <li className="nav-item">
               <NavItem to="/leaderboard" label="Leaderboard" icon="bi-trophy" />
             </li>
             <li className="nav-item">

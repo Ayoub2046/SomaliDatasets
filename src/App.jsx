@@ -11,6 +11,7 @@ import Record from './pages/Record'
 import Profile from './pages/Profile'
 import Leaderboard from './pages/Leaderboard'
 import Statistics from './pages/Statistics'
+import Verify from './pages/Verify'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
@@ -56,6 +57,7 @@ export default function App() {
           />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/statistics" element={<Statistics />} />
+          <Route path="/verify" element={<Verify />} />
           <Route
             path="/admin"
             element={
