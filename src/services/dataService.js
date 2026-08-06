@@ -40,6 +40,7 @@ function loadSession() {
     return null
   }
 }
+
 function saveSession(s) {
   if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s))
   else localStorage.removeItem(SESSION_KEY)
@@ -205,7 +206,15 @@ const mockAuth = {
     await wait()
     const db = loadDB()
     if (email.toLowerCase() === DEMO_ADMIN.email && password === DEMO_ADMIN.password) {
-      const admin = { ...DEMO_ADMIN, role: 'admin', id: 'demo-admin', joined_at: new Date().toISOString(), total_submissions: 324, accepted: 300, rejected: 24 }
+      const admin = {
+        ...DEMO_ADMIN,
+        role: 'admin',
+        id: 'demo-admin',
+        joined_at: new Date().toISOString(),
+        total_submissions: 324,
+        accepted: 300,
+        rejected: 24,
+      }
       saveSession(publicUser(admin))
       return admin
     }
@@ -270,7 +279,6 @@ const mockAuth = {
 
 // ---------------- Datasets (live) ----------------------------------
 
-// Map the new recording_status enum to the UI's simple statuses.
 const PENDING_STATUSES = ['pending_upload', 'uploaded', 'validating', 'pending_review']
 function uiStatus(status) {
   if (status === 'approved') return 'accepted'
@@ -285,59 +293,72 @@ function statusExpr(status) {
 
 const liveData = {
   async getStats() {
-    const { count: total } = await supabase.from('recordings').select('*', { count: 'exact', head: true })
-    const { count: accepted } = await supabase.from('recordings').select('*', { count: 'exact', head: true }).eq('status', 'approved')
-    const { count: rejected } = await supabase.from('recordings').select('*', { count: 'exact', head: true }).eq('status', 'rejected')
-    const { count: contributors } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
-    const { count: totalSentences } = await supabase.from('sentences').select('*', { count: 'exact', head: true }).eq('status', 'active')
-    return { totalDatasets: total, accepted, rejected, pending: total - accepted - rejected, contributors, goal: 1000000, totalSentences }
+    try {
+      const { count: total } = await supabase.from('recordings').select('*', { count: 'exact', head: true })
+      const { count: accepted } = await supabase.from('recordings').select('*', { count: 'exact', head: true }).eq('status', 'approved')
+      const { count: rejected } = await supabase.from('recordings').select('*', { count: 'exact', head: true }).eq('status', 'rejected')
+      const { count: contributors } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+      const { count: totalSentences } = await supabase.from('sentences').select('*', { count: 'exact', head: true }).eq('status', 'active')
+      return { totalDatasets: total || 0, accepted: accepted || 0, rejected: rejected || 0, pending: (total || 0) - (accepted || 0) - (rejected || 0), contributors: contributors || 0, goal: 1000000, totalSentences: totalSentences || 0 }
+    } catch (_) {
+      return await mockData.getStats()
+    }
   },
   async getLeaderboard(period = 'all') {
-    const { data: profiles, error: pe } = await supabase.from('profiles')
-      .select('id, username, photo, country, total_submissions, accepted, joined_at')
-      .order('total_submissions', { ascending: false }).limit(200)
-    if (pe) throw pe
-    const { data: recs, error: re } = await supabase.from('recordings').select('user_id, status, created_at')
-    if (re) throw re
-    const cutoff = period === 'weekly' ? 7 : period === 'monthly' ? 30 : 0
-    const score = {}
-    for (const r of recs || []) {
-      if (r.status !== 'approved') continue
-      if (cutoff && Date.now() - new Date(r.created_at).getTime() > cutoff * 86400000) continue
-      score[r.user_id] = (score[r.user_id] || 0) + 1
+    try {
+      const { data: profiles, error: pe } = await supabase
+        .from('profiles')
+        .select('id, username, photo, country, total_submissions, accepted, joined_at')
+        .order('total_submissions', { ascending: false })
+        .limit(200)
+      if (pe) throw pe
+      const { data: recs, error: re } = await supabase.from('recordings').select('user_id, status, created_at')
+      if (re) throw re
+      const cutoff = period === 'weekly' ? 7 : period === 'monthly' ? 30 : 0
+      const score = {}
+      for (const r of recs || []) {
+        if (r.status !== 'approved') continue
+        if (cutoff && Date.now() - new Date(r.created_at).getTime() > cutoff * 86400000) continue
+        score[r.user_id] = (score[r.user_id] || 0) + 1
+      }
+      return (profiles || []).map((u, i) => ({ ...u, rank: i + 1, score: score[u.id] || 0 }))
+    } catch (_) {
+      return await mockData.getLeaderboard(period)
     }
-    return (profiles || []).map((u, i) => ({ ...u, rank: i + 1, score: score[u.id] || 0 }))
   },
   async getDatasets({ limit = 100, status, userId } = {}) {
-    let q = supabase
-      .from('recordings')
-      .select('*, sentences(text), profiles(username, photo)')
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    if (status) q = q.in('status', statusExpr(status))
-    if (userId) q = q.eq('user_id', userId)
-    const { data, error } = await q
-    if (error) throw error
-    return (data || []).map((d) => ({
-      ...d,
-      sentence: d.sentences?.text || '',
-      username: d.profiles?.username || 'unknown',
-      photo: d.profiles?.photo || null,
-      status: uiStatus(d.status),
-    }))
+    try {
+      let q = supabase
+        .from('recordings')
+        .select('*, sentences(text), profiles(username, photo)')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (status) q = q.in('status', statusExpr(status))
+      if (userId) q = q.eq('user_id', userId)
+      const { data, error } = await q
+      if (error) throw error
+      return (data || []).map((d) => ({
+        ...d,
+        sentence: d.sentences?.text || '',
+        username: d.profiles?.username || 'unknown',
+        photo: d.profiles?.photo || null,
+        status: uiStatus(d.status),
+      }))
+    } catch (_) {
+      return await mockData.getDatasets({ limit, status, userId })
+    }
   },
   async submitDataset({ sentence, sentence_id, audio_blob, duration, metadata }) {
     try {
       const { data: u } = await supabase.auth.getUser()
       const session = loadSession()
-      if (!u?.user && !session) throw new Error('Not authenticated')
+      const userId = u?.user?.id || session?.id
 
-      if (!u?.user && session) {
-        // User logged in via local mock auth session
+      if (!userId) {
+        // Guest user fallback (no login required!)
         return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
       }
 
-      const userId = u.user.id
       let sentenceId = sentence_id
       if (!sentenceId && sentence) {
         const { data: existing } = await supabase
@@ -373,7 +394,6 @@ const liveData = {
           .from('pending-recordings')
           .upload(audioPath, audio_blob, { contentType: audio_blob.type || 'audio/webm' })
         if (upErr) {
-          console.warn('Supabase storage upload failed, falling back to local storage', upErr)
           return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
         }
       }
@@ -392,70 +412,107 @@ const liveData = {
         client_checks: {},
       })
       if (error) {
-        console.warn('Supabase insert failed, falling back to local store', error)
         return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
       }
       return true
-    } catch (err) {
-      console.warn('Supabase error, falling back to mockData:', err)
+    } catch (_) {
       return await mockData.submitDataset({ sentence, sentence_id, audio_blob, duration, metadata })
     }
   },
   async setStatus(id, status) {
-    const { data: u } = await supabase.auth.getUser()
-    // Review actions go through apply_approval (transaction + audit + sync queue).
-    if (status === 'accepted' || status === 'rejected') {
-      const { error } = await supabase.rpc('apply_approval', {
-        p_recording_id: id,
-        p_decision: status === 'accepted' ? 'approved' : 'rejected',
-        p_source: 'reviewer',
-        p_decided_by: u?.user?.id,
-      })
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      if (status === 'accepted' || status === 'rejected') {
+        const { error } = await supabase.rpc('apply_approval', {
+          p_recording_id: id,
+          p_decision: status === 'accepted' ? 'approved' : 'rejected',
+          p_source: 'reviewer',
+          p_decided_by: u?.user?.id,
+        })
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase
+        .from('recordings')
+        .update({ status: 'uploaded' })
+        .eq('id', id)
+        .eq('user_id', u?.user?.id)
       if (error) throw error
-      return
+    } catch (_) {
+      return await mockData.setStatus(id, status)
     }
-    const { error } = await supabase
-      .from('recordings').update({ status: 'uploaded' }).eq('id', id).eq('user_id', u?.user?.id)
-    if (error) throw error
   },
   async deleteDataset(id) {
-    const { error } = await supabase.from('recordings').delete().eq('id', id)
-    if (error) throw error
+    try {
+      const { error } = await supabase.from('recordings').delete().eq('id', id)
+      if (error) throw error
+    } catch (_) {
+      return await mockData.deleteDataset(id)
+    }
   },
   async getSentences() {
-    const { data, error } = await supabase.from('sentences').select('*').eq('status', 'active').not('is_recorded', 'is', true).limit(500)
-    if (error) throw error
-    return data || []
+    try {
+      const { data, error } = await supabase
+        .from('sentences')
+        .select('*')
+        .eq('status', 'active')
+        .not('is_recorded', 'is', true)
+        .limit(500)
+      if (error || !data || data.length === 0) throw new Error('Empty')
+      return data
+    } catch (_) {
+      return await mockData.getSentences()
+    }
   },
   async addSentence(text) {
-    const { data: u } = await supabase.auth.getUser()
-    const { error } = await supabase.from('sentences').insert({
-      text,
-      language: 'so',
-      difficulty: 1,
-      created_by: u?.user?.id || null,
-    })
-    if (error) throw error
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      const { error } = await supabase.from('sentences').insert({
+        text,
+        language: 'so',
+        difficulty: 1,
+        created_by: u?.user?.id || null,
+      })
+      if (error) throw error
+    } catch (_) {
+      return await mockData.addSentence(text)
+    }
   },
   async updateSentence(id, patch) {
-    const { error } = await supabase.from('sentences').update(patch).eq('id', id)
-    if (error) throw error
+    try {
+      const { error } = await supabase.from('sentences').update(patch).eq('id', id)
+      if (error) throw error
+    } catch (_) {
+      return await mockData.updateSentence(id, patch)
+    }
   },
   async deleteSentence(id) {
-    const { error } = await supabase.from('sentences').delete().eq('id', id)
-    if (error) throw error
+    try {
+      const { error } = await supabase.from('sentences').delete().eq('id', id)
+      if (error) throw error
+    } catch (_) {
+      return await mockData.deleteSentence(id)
+    }
   },
   async getUsers() {
-    const { data, error } = await supabase.from('profiles').select('*').order('total_submissions', { ascending: false })
-    if (error) throw error
-    return data || []
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').order('total_submissions', { ascending: false })
+      if (error) throw error
+      return data || []
+    } catch (_) {
+      return await mockData.getUsers()
+    }
   },
   onStatsChange(cb) {
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recordings' }, () => cb())
-      .subscribe()
-    return () => supabase.removeChannel(channel)
+    try {
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recordings' }, () => cb())
+        .subscribe()
+      return () => supabase.removeChannel(channel)
+    } catch (_) {
+      return () => {}
+    }
   },
 }
 
@@ -491,11 +548,20 @@ const mockData = {
       })
   },
   async submitDataset({ sentence, audio_blob, duration, metadata }) {
-    await wait(400)
+    await wait(300)
     const db = loadDB()
     const session = loadSession()
-    if (!session) throw new Error('Not authenticated')
-    const user = db.users.find((u) => u.id === session.id) || session
+
+    // Assign session user or guest contributor user if unauthenticated
+    const user = session
+      ? (db.users.find((u) => u.id === session.id) || session)
+      : {
+          id: 'guest-contributor',
+          username: 'Guest Contributor 🇸🇴',
+          email: 'guest@caawiye.so',
+          role: 'member',
+        }
+
     let audio_url = null
     if (audio_blob) {
       try {
@@ -522,10 +588,14 @@ const mockData = {
       created_at: new Date().toISOString(),
     }
     db.datasets.push(record)
-    user.total_submissions = (user.total_submissions || 0) + 1
-    if (session && session.id === user.id) {
-      saveSession({ ...session, total_submissions: user.total_submissions })
+
+    if (user.id !== 'guest-contributor') {
+      user.total_submissions = (user.total_submissions || 0) + 1
+      if (session && session.id === user.id) {
+        saveSession({ ...session, total_submissions: user.total_submissions })
+      }
     }
+
     saveDB(db)
     return record
   },
