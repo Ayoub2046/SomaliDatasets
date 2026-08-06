@@ -1,32 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../components/ui/Toast'
-import { supabase, IS_LIVE } from '../../lib/supabase'
-import { DEMO_ADMIN } from '../../config/config'
 
-// Hidden admin entry point. Deliberately low-profile: no link from the
-// landing page, no social/register affordances, rate-limited server-side.
 export default function AdminLogin() {
-  const { login, refresh } = useAuth()
+  const { login } = useAuth()
   const { push } = useToast()
   const navigate = useNavigate()
-  const tokenRef = useRef('')
   const [form, setForm] = useState({ email: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY
-    if (!IS_LIVE || !siteKey || typeof window === 'undefined' || !window.turnstile) return
-    window.turnstile.render(document.getElementById('turnstile-widget'), {
-      sitekey: siteKey,
-      size: 'invisible',
-      callback: (token) => {
-        tokenRef.current = token
-      },
-    })
-  }, [])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -35,25 +18,11 @@ export default function AdminLogin() {
     setBusy(true)
     setError('')
     try {
-      if (!IS_LIVE) {
-        // Demo mode: use the demo admin account against the mock backend.
-        await login({ email: DEMO_ADMIN.email, password: DEMO_ADMIN.password })
-        push('Waad ku soo gashay admin-ka demo-ka!')
-        navigate('/admin', { replace: true })
-        return
-      }
-      const { data, error } = await supabase.functions.invoke('admin-auth', {
-        body: { email: form.email, password: form.password, turnstileToken: tokenRef.current },
-      })
-      if (error) throw new Error(error.message || 'Admin login failed')
-      if (!data?.session) throw new Error('Admin login failed')
-
-      await supabase.auth.setSession(data.session)
-      await refresh()
-      push('Waad ku soo gashay admin-ka!')
+      const loggedUser = await login({ email: form.email.trim(), password: form.password })
+      push('Waad ku soo gashay admin-ka! 👋')
       navigate('/admin', { replace: true })
     } catch (err) {
-      setError(err.message || 'Login wuu ku dambeeyay.')
+      setError(err.message || 'Login wuu ku dambeeyay. Hubi email-ka iyo password-ka.')
     } finally {
       setBusy(false)
     }
@@ -63,39 +32,59 @@ export default function AdminLogin() {
     <div className="container py-5">
       <div className="row justify-content-center">
         <div className="col-md-5 col-lg-4">
-          <div className="card shadow-lg border-0 p-4 p-md-5">
+          <div className="card shadow-lg brand-ring border-0 p-4 p-md-5">
             <div className="text-center mb-4">
-              <span className="brand-badge mx-auto" style={{ width: 56, height: 56, fontSize: '1.5rem' }}>
-                <i className="bi bi-shield-lock-fill" />
+              <span className="brand-ring mx-auto rounded-circle d-grid place-items-center mb-2" style={{ width: 64, height: 64, background: 'rgba(158,254,5,0.15)' }}>
+                <i className="bi bi-shield-lock-fill fs-2 text-lime" />
               </span>
-              <h4 className="fw-bold mt-3 mb-1">Staff Login</h4>
-              <p className="text-muted small mb-0">Restricted area. Authorized personnel only.</p>
+              <h4 className="fw-bold mt-2 mb-1">Staff Login</h4>
+              <p className="text-muted small mb-0">CaawiyeAI Admin Control Panel</p>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="mb-3">
                 <label className="form-label small fw-semibold">Email</label>
                 <div className="input-group">
-                  <span className="input-group-text"><i className="bi bi-envelope" /></span>
-                  <input type="email" className="form-control" placeholder="staff@caawiye.ai" value={form.email} onChange={set('email')} required />
+                  <span className="input-group-text bg-soft border-secondary border-opacity-25"><i className="bi bi-envelope text-lime" /></span>
+                  <input
+                    type="email"
+                    className="form-control bg-soft text-white border-secondary border-opacity-25"
+                    placeholder="admin@caawiyeai.so"
+                    value={form.email}
+                    onChange={set('email')}
+                    required
+                  />
                 </div>
               </div>
+
               <div className="mb-4">
                 <label className="form-label small fw-semibold">Password</label>
                 <div className="input-group">
-                  <span className="input-group-text"><i className="bi bi-lock" /></span>
-                  <input type="password" className="form-control" placeholder="••••••••" value={form.password} onChange={set('password')} required />
+                  <span className="input-group-text bg-soft border-secondary border-opacity-25"><i className="bi bi-lock text-lime" /></span>
+                  <input
+                    type="password"
+                    className="form-control bg-soft text-white border-secondary border-opacity-25"
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={set('password')}
+                    required
+                  />
                 </div>
               </div>
 
-              <div id="turnstile-widget" />
+              {error && <div className="alert alert-danger py-2 small mb-3">{error}</div>}
 
-              {error && <div className="alert alert-danger py-2 small">{error}</div>}
-
-              <button className="btn btn-lime w-100 py-2" disabled={busy} type="submit">
-                {busy ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-box-arrow-in-right me-2" />Sign in</>}
+              <button className="btn btn-lime btn-lg w-100 py-2 rounded-pill fw-bold" disabled={busy} type="submit">
+                {busy ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-box-arrow-in-right me-2" />Sign in as Admin</>}
               </button>
             </form>
+
+            {/* Quick Demo Hint */}
+            <div className="p-3 mt-4 rounded-3 bg-soft border border-secondary border-opacity-25 text-center">
+              <div className="micro-title text-lime fw-bold mb-1">Demo Admin Credentials</div>
+              <div className="small font-monospace text-white-50">Email: admin@caawiyeai.so</div>
+              <div className="small font-monospace text-white-50">Pass: admin123</div>
+            </div>
 
             <p className="text-center small text-muted mt-4 mb-0">
               Regular member? <Link to="/login" className="text-lime text-decoration-none">Go to user login</Link>
