@@ -455,12 +455,12 @@ create or replace function public.grant_achievements()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.user_achievements (user_id, achievement_id)
-  select new.user_id, a.id
+  select new.id, a.id
     from public.achievements a
    where new.total_submissions >= a.threshold
      and not exists (
        select 1 from public.user_achievements ua
-       where ua.user_id = new.user_id and ua.achievement_id = a.id
+       where ua.user_id = new.id and ua.achievement_id = a.id
      );
   return new;
 end $$;

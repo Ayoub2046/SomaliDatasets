@@ -145,7 +145,7 @@ begin
    where new.total_submissions >= a.threshold
      and not exists (
        select 1 from public.user_achievements ua
-       where ua.user_id = new.user_id and ua.achievement_id = a.id
+       where ua.user_id = new.id and ua.achievement_id = a.id
      );
   return new;
 end $$;
