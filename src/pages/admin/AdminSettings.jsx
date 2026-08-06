@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { data, IS_LIVE } from '../../services/dataService'
+import { data, IS_LIVE, clearAllDatasets } from '../../services/dataService'
 import PageHeader from '../../components/PageHeader'
 import { useToast } from '../../components/ui/Toast'
 import { CONFIG } from '../../config/config'
@@ -57,18 +57,26 @@ export default function AdminSettings() {
     push('Dataset pushed to Hugging Face (demo trigger).')
   }
 
+  function handleClearDatasets() {
+    if (window.confirm('Ma ziyaadisaa inaad tirtirto dhammaan datasets-ka hore oo aad eber ka bilaabato?')) {
+      clearAllDatasets()
+      setRows([])
+      push('Dhammaan datasets-kii hore waa la safaysay! Hadda kaliya kuwa aad duubto ayaa geli doona. 🧹', 'info')
+    }
+  }
+
   const acceptedCount = rows.filter((r) => r.status === 'accepted').length
 
   return (
     <div>
-      <PageHeader icon="bi-gear" title="Settings & Export" subtitle="Maamulidda soo-saarista dataset-ka" />
+      <PageHeader icon="bi-gear" title="Settings & Export" subtitle="Maamulidda soo-saarista iyo nadiifinta dataset-ka" />
 
       <div className="row g-4">
         <div className="col-lg-7">
           <div className="card p-4 h-100">
             <h6 className="fw-bold mb-3"><i className="bi bi-filetype-csv text-lime me-2" />Export CSV</h6>
             <p className="small text-muted">
-              Export the accepted clips into a <code>metadata.csv</code> ready for a Hugging Face~dataset repository.
+              Export the accepted clips into a <code>metadata.csv</code> ready for a Hugging Face dataset repository.
               Currently <b className="text-lime">{acceptedCount.toLocaleString()}</b> accepted clips ready to export.
             </p>
             <div className="d-flex flex-wrap gap-2">
@@ -92,15 +100,32 @@ export default function AdminSettings() {
                 <li><code>metadata.csv</code> — transcripts</li>
               </ul>
             </div>
-            <button className="btn btn-lime w-100" onClick={pushHF} disabled={pushing}>
+            <button className="btn btn-lime w-100 mb-3" onClick={pushHF} disabled={pushing}>
               {pushing ? <span className="spinner-border spinner-border-sm me-2" /> : <i className="bi bi-cloud-arrow-up me-2" />}
               {pushedAt ? 'Push to Hugging Face again' : 'Push to Hugging Face'}
             </button>
             {pushedAt && (
-              <div className="alert alert-success small mt-3 mb-0">
+              <div className="alert alert-success small mb-0 py-2">
                 <i className="bi bi-check-circle me-1" />Last push: {new Date(pushedAt).toLocaleString()}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Database Management & Clean Up */}
+        <div className="col-12">
+          <div className="card p-4 border-danger border-opacity-25 bg-soft">
+            <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+              <div>
+                <h6 className="fw-bold text-white mb-1"><i className="bi bi-trash3 text-danger me-2" />Clear Datasets (Start Fresh)</h6>
+                <p className="small text-muted mb-0">
+                  Delete all existing dummy datasets. Only your newly recorded & submitted audio datasets will be saved and visible.
+                </p>
+              </div>
+              <button className="btn btn-outline-danger btn-sm px-4 py-2 rounded-pill fw-bold" onClick={handleClearDatasets}>
+                <i className="bi bi-eraser-fill me-2" />Clear All Existing Datasets
+              </button>
+            </div>
           </div>
         </div>
 

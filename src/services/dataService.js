@@ -12,7 +12,7 @@ import { DEMO_ADMIN } from '../config/config'
 import { seedSentences, seedUsers, seedDatasets, computeSeedStats } from './mockData'
 
 // ---------------- Mock store helpers -------------------------------
-const DB_KEY = 'caawiyeai_db_v1'
+const DB_KEY = 'caawiyeai_db_v2'
 const SESSION_KEY = 'caawiyeai_session_v1'
 
 const wait = (ms = 300) => new Promise((r) => setTimeout(r, ms))
@@ -527,7 +527,8 @@ const liveData = {
 const mockData = {
   async getStats() {
     await wait(120)
-    return computeSeedStats()
+    const db = loadDB()
+    return computeSeedStats(db)
   },
   async getLeaderboard(period = 'all') {
     await wait(150)
@@ -688,3 +689,9 @@ export async function blobToDataURL(blob) {
 }
 
 export const sessionUser = () => (IS_LIVE ? null : loadSession())
+
+export function clearAllDatasets() {
+  const db = loadDB()
+  db.datasets = []
+  saveDB(db)
+}
